@@ -1,0 +1,1927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>NutriTrack AI – Food Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gray: {
+              950: '#0a0a0f',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { background: #0a0a0f; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: #374151; outline: none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; }
+    input[type=range].accent-green-500::-webkit-slider-thumb { background: #22c55e; }
+    input[type=range].accent-blue-500::-webkit-slider-thumb { background: #3b82f6; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes bounce { 0%,100%{transform:translateY(-25%)} 50%{transform:none} }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    @keyframes slideUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+    .animate-spin { animation: spin 1s linear infinite; }
+    .animate-bounce { animation: bounce 1s infinite; }
+    .animate-pulse { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+    .slide-up { animation: slideUp 0.3s ease-out; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+    .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    .modal-sticky-footer { padding-bottom: max(20px, env(safe-area-inset-bottom, 20px)); }
+    .nav-safe-bottom { padding-bottom: max(12px, env(safe-area-inset-bottom, 12px)); }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useContext, useReducer, useRef, useCallback, useMemo } = React;
+
+// ============================================================
+// FOOD DATABASE
+// ============================================================
+const FOOD_DB = {
+  'egg': { calories: 78, protein: 6.3, unit: 'piece' },
+  'egg white': { calories: 17, protein: 3.6, unit: 'piece' },
+  'boiled egg': { calories: 78, protein: 6.3, unit: 'piece' },
+  'scrambled egg': { calories: 100, protein: 7, unit: 'piece' },
+  'omelette': { calories: 154, protein: 11, unit: 'piece' },
+  'roti': { calories: 80, protein: 2.7, unit: 'piece' },
+  'chapati': { calories: 80, protein: 2.7, unit: 'piece' },
+  'paratha': { calories: 180, protein: 4, unit: 'piece' },
+  'naan': { calories: 262, protein: 9, unit: 'piece' },
+  'rice': { calories: 206, protein: 4.3, unit: 'cup' },
+  'brown rice': { calories: 216, protein: 5, unit: 'cup' },
+  'dal': { calories: 150, protein: 9, unit: 'cup' },
+  'daal': { calories: 150, protein: 9, unit: 'cup' },
+  'lentils': { calories: 230, protein: 18, unit: 'cup' },
+  'chicken breast': { calories: 165, protein: 31, unit: '100g' },
+  'chicken': { calories: 165, protein: 31, unit: '100g' },
+  'grilled chicken': { calories: 165, protein: 31, unit: '100g' },
+  'paneer': { calories: 265, protein: 18, unit: '100g' },
+  'tofu': { calories: 76, protein: 8, unit: '100g' },
+  'milk': { calories: 149, protein: 8, unit: 'cup' },
+  'curd': { calories: 98, protein: 11, unit: 'cup' },
+  'yogurt': { calories: 100, protein: 17, unit: 'cup' },
+  'greek yogurt': { calories: 100, protein: 17, unit: 'cup' },
+  'banana': { calories: 89, protein: 1.1, unit: 'piece' },
+  'apple': { calories: 95, protein: 0.5, unit: 'piece' },
+  'orange': { calories: 62, protein: 1.2, unit: 'piece' },
+  'mango': { calories: 99, protein: 1.4, unit: 'piece' },
+  'whey protein': { calories: 120, protein: 25, unit: 'scoop' },
+  'protein shake': { calories: 150, protein: 30, unit: 'serving' },
+  'protein bar': { calories: 200, protein: 20, unit: 'piece' },
+  'almonds': { calories: 164, protein: 6, unit: 'handful' },
+  'peanut butter': { calories: 188, protein: 8, unit: 'tbsp' },
+  'bread': { calories: 79, protein: 2.7, unit: 'slice' },
+  'toast': { calories: 79, protein: 2.7, unit: 'slice' },
+  'oats': { calories: 154, protein: 5.4, unit: 'cup' },
+  'oatmeal': { calories: 154, protein: 5.4, unit: 'cup' },
+  'pasta': { calories: 220, protein: 8, unit: 'cup' },
+  'noodles': { calories: 200, protein: 7, unit: 'cup' },
+  'salmon': { calories: 208, protein: 20, unit: '100g' },
+  'tuna': { calories: 132, protein: 28, unit: '100g' },
+  'fish': { calories: 150, protein: 22, unit: '100g' },
+  'beans': { calories: 245, protein: 15, unit: 'cup' },
+  'rajma': { calories: 245, protein: 15, unit: 'cup' },
+  'chole': { calories: 270, protein: 15, unit: 'cup' },
+  'broccoli': { calories: 55, protein: 3.7, unit: 'cup' },
+  'spinach': { calories: 7, protein: 0.9, unit: 'cup' },
+  'potato': { calories: 161, protein: 4.3, unit: 'piece' },
+  'sweet potato': { calories: 103, protein: 2.3, unit: 'piece' },
+  'cheese': { calories: 113, protein: 7, unit: 'slice' },
+  'butter': { calories: 102, protein: 0.1, unit: 'tbsp' },
+  'ghee': { calories: 135, protein: 0, unit: 'tbsp' },
+  'milk tea': { calories: 50, protein: 1.5, unit: 'cup' },
+  'tea': { calories: 30, protein: 0.5, unit: 'cup' },
+  'coffee': { calories: 5, protein: 0.3, unit: 'cup' },
+  'juice': { calories: 112, protein: 0.5, unit: 'cup' },
+  'idli': { calories: 39, protein: 1.5, unit: 'piece' },
+  'dosa': { calories: 120, protein: 3, unit: 'piece' },
+  'sambar': { calories: 140, protein: 7, unit: 'cup' },
+  'upma': { calories: 180, protein: 4, unit: 'serving' },
+  'poha': { calories: 250, protein: 4, unit: 'serving' },
+  'salad': { calories: 80, protein: 2, unit: 'bowl' },
+  'sandwich': { calories: 300, protein: 15, unit: 'piece' },
+  'burger': { calories: 450, protein: 20, unit: 'piece' },
+  'pizza': { calories: 285, protein: 12, unit: 'slice' },
+  'soup': { calories: 80, protein: 4, unit: 'bowl' },
+  'moong dal': { calories: 147, protein: 10, unit: 'cup' },
+  'sprouts': { calories: 62, protein: 4, unit: 'cup' },
+  'samosa': { calories: 262, protein: 5, unit: 'piece' },
+  'khichdi': { calories: 190, protein: 7, unit: 'cup' },
+  'kadhi': { calories: 120, protein: 5, unit: 'cup' },
+  'lassi': { calories: 150, protein: 5, unit: 'cup' },
+  'buttermilk': { calories: 40, protein: 2, unit: 'cup' },
+  'corn': { calories: 132, protein: 4.7, unit: 'cup' },
+  'grapes': { calories: 62, protein: 0.6, unit: 'cup' },
+  'watermelon': { calories: 46, protein: 0.9, unit: 'cup' },
+  'peanuts': { calories: 166, protein: 7.3, unit: 'handful' },
+  'walnuts': { calories: 185, protein: 4.3, unit: 'handful' },
+  'cashews': { calories: 157, protein: 5.2, unit: 'handful' },
+  'coconut': { calories: 283, protein: 2.7, unit: 'cup' },
+  'lemon': { calories: 17, protein: 0.6, unit: 'piece' },
+
+  // ── Hindi transliteration (Roman script) ──
+  'ande': { calories: 78, protein: 6.3, unit: 'piece' },        // eggs (plural)
+  'anda': { calories: 78, protein: 6.3, unit: 'piece' },        // egg
+  'doodh': { calories: 149, protein: 8, unit: 'cup' },           // milk
+  'dahi': { calories: 98, protein: 11, unit: 'cup' },            // curd
+  'chawal': { calories: 206, protein: 4.3, unit: 'cup' },        // rice
+  'aloo': { calories: 161, protein: 4.3, unit: 'piece' },        // potato
+  'chai': { calories: 50, protein: 1.5, unit: 'cup' },           // tea
+  'makhan': { calories: 102, protein: 0.1, unit: 'tbsp' },       // butter
+  'makkhan': { calories: 102, protein: 0.1, unit: 'tbsp' },      // butter
+  'sabzi': { calories: 80, protein: 3, unit: 'cup' },            // vegetables
+  'kela': { calories: 89, protein: 1.1, unit: 'piece' },         // banana
+  'seb': { calories: 95, protein: 0.5, unit: 'piece' },          // apple
+  'angoor': { calories: 62, protein: 0.6, unit: 'cup' },         // grapes
+  'nimbu': { calories: 17, protein: 0.6, unit: 'piece' },        // lemon
+  'tamatar': { calories: 22, protein: 1.1, unit: 'piece' },      // tomato
+  'pyaaz': { calories: 44, protein: 1.2, unit: 'piece' },        // onion
+  'chana': { calories: 270, protein: 15, unit: 'cup' },          // chickpeas
+  'moong': { calories: 147, protein: 10, unit: 'cup' },          // mung beans
+  'atta': { calories: 340, protein: 12, unit: 'cup' },           // wheat flour
+  'suji': { calories: 360, protein: 13, unit: 'cup' },           // semolina
+  'besan': { calories: 387, protein: 22, unit: 'cup' },          // gram flour
+  'murgh': { calories: 165, protein: 31, unit: '100g' },         // chicken
+  'machli': { calories: 150, protein: 22, unit: '100g' },        // fish
+  'mach': { calories: 150, protein: 22, unit: '100g' },          // fish (short)
+  'gosht': { calories: 250, protein: 26, unit: '100g' },         // mutton/meat
+  'mutton': { calories: 294, protein: 25, unit: '100g' },
+  'keema': { calories: 280, protein: 27, unit: '100g' },         // minced meat
+  'kheer': { calories: 180, protein: 5, unit: 'cup' },           // rice pudding
+  'halwa': { calories: 250, protein: 4, unit: 'cup' },           // sweet
+  'barfi': { calories: 320, protein: 7, unit: 'piece' },         // milk sweet
+  'ladoo': { calories: 180, protein: 4, unit: 'piece' },         // sweet ball
+  'laddoo': { calories: 180, protein: 4, unit: 'piece' },
+  'gulab jamun': { calories: 150, protein: 2.5, unit: 'piece' },
+  'jalebi': { calories: 150, protein: 2, unit: 'piece' },
+  'puri': { calories: 120, protein: 2.5, unit: 'piece' },        // fried bread
+  'bhatura': { calories: 200, protein: 4, unit: 'piece' },
+  'vada': { calories: 97, protein: 3, unit: 'piece' },
+  'pakora': { calories: 120, protein: 4, unit: 'piece' },
+  'chutney': { calories: 30, protein: 0.5, unit: 'tbsp' },
+  'raita': { calories: 60, protein: 3, unit: 'cup' },
+  'achaar': { calories: 20, protein: 0.3, unit: 'tbsp' },        // pickle
+  'nimbu pani': { calories: 40, protein: 0.3, unit: 'cup' },     // lemon water
+  'lasun': { calories: 4, protein: 0.2, unit: 'clove' },         // garlic
+  'adrak': { calories: 4, protein: 0.1, unit: 'tsp' },           // ginger
+
+  // ── Devanagari (Hindi script) ──
+  'अंडा': { calories: 78, protein: 6.3, unit: 'piece' },
+  'अण्डा': { calories: 78, protein: 6.3, unit: 'piece' },
+  'दूध': { calories: 149, protein: 8, unit: 'cup' },
+  'दही': { calories: 98, protein: 11, unit: 'cup' },
+  'चावल': { calories: 206, protein: 4.3, unit: 'cup' },
+  'आलू': { calories: 161, protein: 4.3, unit: 'piece' },
+  'चाय': { calories: 50, protein: 1.5, unit: 'cup' },
+  'घी': { calories: 135, protein: 0, unit: 'tbsp' },
+  'रोटी': { calories: 80, protein: 2.7, unit: 'piece' },
+  'दाल': { calories: 150, protein: 9, unit: 'cup' },
+  'पनीर': { calories: 265, protein: 18, unit: '100g' },
+  'केला': { calories: 89, protein: 1.1, unit: 'piece' },
+  'सेब': { calories: 95, protein: 0.5, unit: 'piece' },
+  'राजमा': { calories: 245, protein: 15, unit: 'cup' },
+  'छोले': { calories: 270, protein: 15, unit: 'cup' },
+  'समोसा': { calories: 262, protein: 5, unit: 'piece' },
+  'मक्खन': { calories: 102, protein: 0.1, unit: 'tbsp' },
+  'नान': { calories: 262, protein: 9, unit: 'piece' },
+  'परांठा': { calories: 180, protein: 4, unit: 'piece' },
+  'पोहा': { calories: 250, protein: 4, unit: 'serving' },
+  'उपमा': { calories: 180, protein: 4, unit: 'serving' },
+  'इडली': { calories: 39, protein: 1.5, unit: 'piece' },
+  'डोसा': { calories: 120, protein: 3, unit: 'piece' },
+  'खिचड़ी': { calories: 190, protein: 7, unit: 'cup' },
+  'लस्सी': { calories: 150, protein: 5, unit: 'cup' },
+  'चिकन': { calories: 165, protein: 31, unit: '100g' },
+  'मछली': { calories: 150, protein: 22, unit: '100g' },
+  'मटन': { calories: 294, protein: 25, unit: '100g' },
+  'प्याज': { calories: 44, protein: 1.2, unit: 'piece' },
+  'टमाटर': { calories: 22, protein: 1.1, unit: 'piece' },
+  'हलवा': { calories: 250, protein: 4, unit: 'cup' },
+  'लड्डू': { calories: 180, protein: 4, unit: 'piece' },
+  'पूरी': { calories: 120, protein: 2.5, unit: 'piece' },
+  'भटूरा': { calories: 200, protein: 4, unit: 'piece' },
+  'रायता': { calories: 60, protein: 3, unit: 'cup' },
+  'नींबू पानी': { calories: 40, protein: 0.3, unit: 'cup' },
+  'अंगूर': { calories: 62, protein: 0.6, unit: 'cup' },
+  'मूंगफली': { calories: 166, protein: 7.3, unit: 'handful' },
+};
+
+const QUANTITY_WORDS = {
+  // English
+  'a': 1, 'an': 1, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+  'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+  'half': 0.5, 'quarter': 0.25, 'couple': 2, 'few': 3,
+  // Hindi transliteration numbers
+  'ek': 1, 'do': 2, 'teen': 3, 'char': 4, 'paanch': 5,
+  'chhe': 6, 'saat': 7, 'aath': 8, 'nau': 9, 'das': 10,
+  'aadha': 0.5, 'adha': 0.5, 'dedh': 1.5,
+  // Devanagari digits
+  '१': 1, '२': 2, '३': 3, '४': 4, '५': 5,
+  '६': 6, '७': 7, '८': 8, '९': 9, '१०': 10,
+};
+
+// ============================================================
+// MOCK AI PARSER
+// ============================================================
+function parseFood(text) {
+  // Normalise: lowercase for English parts, keep Devanagari intact
+  const lower = text.toLowerCase().trim();
+  const results = [];
+  const usedRanges = [];
+
+  // Sort by key length descending (longest match wins)
+  const foods = Object.keys(FOOD_DB).sort((a, b) => b.length - a.length);
+
+  for (const food of foods) {
+    // For Devanagari keys use original text; for English use lowercased
+    const isDevanagari = /[\u0900-\u097F]/.test(food);
+    const searchIn = isDevanagari ? text : lower;
+
+    let startIdx = 0;
+    while (true) {
+      const idx = searchIn.indexOf(food, startIdx);
+      if (idx === -1) break;
+      startIdx = idx + 1;
+
+      if (!isDevanagari) {
+        // Word-boundary check for Latin script — allow trailing 's' for plurals
+        const before = searchIn[idx - 1];
+        const after  = searchIn[idx + food.length];
+        const afterAfter = searchIn[idx + food.length + 1];
+        const isPluralS = after === 's' && (!afterAfter || !/[a-z]/.test(afterAfter));
+        if (before && /[a-z]/.test(before)) continue;
+        if (after && /[a-z]/.test(after) && !isPluralS) continue;
+      }
+
+      // Overlap check
+      const overlap = usedRanges.some(([s, e]) => idx < e && idx + food.length > s);
+      if (overlap) continue;
+
+      // ── Extract quantity from the text before the food name ──
+      // Use original text for Devanagari (preserves script); lowercase for Latin
+      const beforeText = lower.substring(0, idx).trim();
+      const beforeTextOrig = text.substring(0, idx).trim();
+      const tokens = beforeText.split(/[\s,।]+/);
+      const tokensOrig = beforeTextOrig.split(/[\s,।]+/);
+      const lastToken = tokens[tokens.length - 1];
+      const lastTokenOrig = tokensOrig[tokensOrig.length - 1];
+      const secondLastToken = tokens[tokens.length - 2];
+
+      let quantity = 1;
+      const dbItem = FOOD_DB[food];
+
+      // Handle "Xg" / "X grams" for 100g-unit foods (e.g. "200g chicken" → 2 servings)
+      const gramMatch = beforeText.match(/(\d+(?:\.\d+)?)\s*g(?:rams?)?$/i);
+      if (gramMatch) {
+        const grams = parseFloat(gramMatch[1]);
+        if (dbItem.unit === '100g') {
+          quantity = grams / 100;
+        } else {
+          quantity = 1;
+        }
+      } else if (lastToken && !isNaN(parseFloat(lastToken))) {
+        quantity = parseFloat(lastToken);
+      } else if (lastTokenOrig && QUANTITY_WORDS[lastTokenOrig] !== undefined) {
+        // catches Devanagari digits (१, २…) and Hindi words (ek, do, teen…)
+        quantity = QUANTITY_WORDS[lastTokenOrig];
+      } else if (lastToken && QUANTITY_WORDS[lastToken] !== undefined) {
+        quantity = QUANTITY_WORDS[lastToken];
+      } else if (secondLastToken && !isNaN(parseFloat(secondLastToken)) &&
+                 ['cup', 'cups', 'tbsp', 'tsp', 'scoop', 'scoops', 'slice', 'slices', 'bowl', 'bowls'].includes(lastToken)) {
+        quantity = parseFloat(secondLastToken);
+      }
+
+      // Display name: capitalise each word for Latin; keep Devanagari as-is
+      const displayName = isDevanagari
+        ? food
+        : food.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+      results.push({
+        name: displayName,
+        quantity: Math.round(quantity * 100) / 100,
+        unit: dbItem.unit,
+        calories: Math.round(dbItem.calories * quantity),
+        protein: Math.round(dbItem.protein * quantity * 10) / 10,
+      });
+
+      usedRanges.push([idx, idx + food.length]);
+      break;
+    }
+  }
+
+  const recognized = results.length > 0;
+
+  if (!recognized) {
+    results.push({
+      name: text.charAt(0).toUpperCase() + text.slice(1),
+      quantity: 1,
+      unit: 'serving',
+      calories: 200,
+      protein: 8,
+    });
+  }
+
+  results.__recognized = recognized;
+  return results;
+}
+
+// ============================================================
+// CAMERA SCAN MOCK DATA
+// ============================================================
+const SCAN_MOCKS = [
+  [
+    { name: 'Rice', quantity: 1, unit: 'cup', calories: 206, protein: 4.3 },
+    { name: 'Chicken Breast', quantity: 1, unit: '100g', calories: 165, protein: 31 },
+    { name: 'Broccoli', quantity: 0.5, unit: 'cup', calories: 28, protein: 1.9 },
+  ],
+  [
+    { name: 'Roti', quantity: 2, unit: 'piece', calories: 160, protein: 5.4 },
+    { name: 'Dal', quantity: 1, unit: 'cup', calories: 150, protein: 9 },
+    { name: 'Curd', quantity: 0.5, unit: 'cup', calories: 49, protein: 5.5 },
+  ],
+  [
+    { name: 'Oatmeal', quantity: 1, unit: 'cup', calories: 154, protein: 5.4 },
+    { name: 'Banana', quantity: 1, unit: 'piece', calories: 89, protein: 1.1 },
+    { name: 'Almonds', quantity: 1, unit: 'handful', calories: 164, protein: 6 },
+  ],
+  [
+    { name: 'Egg', quantity: 3, unit: 'piece', calories: 234, protein: 18.9 },
+    { name: 'Toast', quantity: 2, unit: 'slice', calories: 158, protein: 5.4 },
+    { name: 'Milk Tea', quantity: 1, unit: 'cup', calories: 50, protein: 1.5 },
+  ],
+  [
+    { name: 'Paneer', quantity: 1, unit: '100g', calories: 265, protein: 18 },
+    { name: 'Roti', quantity: 3, unit: 'piece', calories: 240, protein: 8.1 },
+    { name: 'Salad', quantity: 1, unit: 'bowl', calories: 80, protein: 2 },
+  ],
+  [
+    { name: 'Salmon', quantity: 1, unit: '100g', calories: 208, protein: 20 },
+    { name: 'Brown Rice', quantity: 1, unit: 'cup', calories: 216, protein: 5 },
+    { name: 'Spinach', quantity: 1, unit: 'cup', calories: 7, protein: 0.9 },
+  ],
+];
+
+// ============================================================
+// AI SUGGESTION ENGINE
+// ============================================================
+const AI_GOALS = { calories: 2000, protein: 150 };
+
+function getSuggestions(consumed, goals) {
+  const suggestions = [];
+  const { calories: cal, protein: pro } = consumed;
+  const { calories: calGoal, protein: proGoal } = goals;
+
+  if (cal === 0 && pro === 0) {
+    return [{
+      type: 'info', emoji: '🌅',
+      title: 'Start Your Day Right',
+      message: 'No meals logged yet. Start with a protein-rich breakfast!',
+      foods: ['Egg', 'Greek Yogurt', 'Oatmeal'],
+    }];
+  }
+
+  const calPct = cal / calGoal;
+  const proPct = pro / proGoal;
+
+  if (cal > calGoal * 1.15) {
+    suggestions.push({
+      type: 'warning', emoji: '⚠️',
+      title: 'Calorie Goal Exceeded',
+      message: `You're ${Math.round(cal - calGoal)} kcal over your goal. Consider lighter options.`,
+      foods: ['Salad', 'Broccoli', 'Soup', 'Spinach'],
+    });
+  } else if (calPct < 0.5) {
+    suggestions.push({
+      type: 'info', emoji: '🍽️',
+      title: 'Eating Too Little',
+      message: `Only ${Math.round(calPct * 100)}% of calories consumed. Add nourishing meals.`,
+      foods: ['Peanut Butter', 'Rice', 'Almonds', 'Sweet Potato'],
+    });
+  } else if (calPct >= 0.85 && calPct <= 1.05) {
+    suggestions.push({
+      type: 'success', emoji: '✅',
+      title: 'Calories On Track',
+      message: `${Math.round(calGoal - cal)} kcal remaining. Keep it up!`,
+      foods: [],
+    });
+  } else {
+    suggestions.push({
+      type: 'info', emoji: '📊',
+      title: 'Calories Progress',
+      message: `${Math.round(calPct * 100)}% of daily goal consumed. ${Math.round(calGoal - cal)} kcal to go.`,
+      foods: [],
+    });
+  }
+
+  if (proPct < 0.7) {
+    suggestions.push({
+      type: 'warning', emoji: '💪',
+      title: 'Protein Gap',
+      message: `Need ${Math.round(proGoal - pro)}g more protein today. Try these:`,
+      foods: ['Chicken Breast', 'Whey Protein', 'Lentils', 'Paneer', 'Eggs'],
+    });
+  } else if (proPct >= 1) {
+    suggestions.push({
+      type: 'success', emoji: '🏆',
+      title: 'Protein Goal Met!',
+      message: 'Excellent protein intake today. Your muscles will thank you!',
+      foods: [],
+    });
+  } else {
+    suggestions.push({
+      type: 'info', emoji: '🥩',
+      title: 'Almost There on Protein',
+      message: `Just ${Math.round(proGoal - pro)}g more protein needed.`,
+      foods: ['Greek Yogurt', 'Almonds', 'Cheese', 'Tuna'],
+    });
+  }
+
+  return suggestions;
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function getToday() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function formatDateShort(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function getLast7Days() {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  return days;
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// ============================================================
+// STATE MANAGEMENT
+// ============================================================
+const AppContext = React.createContext(null);
+
+function getInitialState() {
+  try {
+    const stored = localStorage.getItem('nutritrack_v2');
+    if (stored) return JSON.parse(stored);
+  } catch (e) {}
+  return {
+    goals: { calories: 2000, protein: 150, mode: 'manual' },
+    logs: {},
+    currentDate: getToday(),
+  };
+}
+
+function reducer(state, action) {
+  let newState;
+  switch (action.type) {
+    case 'SET_GOALS':
+      newState = { ...state, goals: action.payload };
+      break;
+    case 'SET_DATE':
+      newState = { ...state, currentDate: action.payload };
+      break;
+    case 'ADD_MEAL': {
+      const { date, meal } = action.payload;
+      newState = {
+        ...state,
+        logs: {
+          ...state.logs,
+          [date]: [...(state.logs[date] || []), meal],
+        },
+      };
+      break;
+    }
+    case 'DELETE_MEAL': {
+      const { date, mealId } = action.payload;
+      newState = {
+        ...state,
+        logs: {
+          ...state.logs,
+          [date]: (state.logs[date] || []).filter(m => m.id !== mealId),
+        },
+      };
+      break;
+    }
+    default:
+      return state;
+  }
+  try { localStorage.setItem('nutritrack_v2', JSON.stringify(newState)); } catch (e) {}
+  return newState;
+}
+
+// ============================================================
+// UI COMPONENTS
+// ============================================================
+
+function ProgressBar({ value, max, colorClass, label, current, goal, unit }) {
+  const pct = Math.min((value / (max || 1)) * 100, 100);
+  const over = value > max;
+  return (
+    <div className="mb-4">
+      <div className="flex justify-between items-center mb-1.5">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</span>
+        <span className={`text-sm font-bold ${over ? 'text-red-400' : 'text-white'}`}>
+          {Math.round(current)}{unit} <span className="text-gray-500 font-normal">/ {Math.round(goal)}{unit}</span>
+        </span>
+      </div>
+      <div className="w-full bg-gray-700/60 rounded-full h-2.5 overflow-hidden">
+        <div
+          className={`h-2.5 rounded-full transition-all duration-700 ease-out ${over ? 'bg-red-500' : colorClass}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex justify-end mt-1">
+        <span className={`text-xs ${over ? 'text-red-400' : 'text-gray-500'}`}>
+          {over ? `${Math.round(value - max)}${unit} over goal` : `${Math.round(pct)}% complete`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MacroRing({ value, max, color, label, unit, bgColor }) {
+  const pct = Math.min(value / (max || 1), 1);
+  const R = 38;
+  const C = 2 * Math.PI * R;
+  const dash = pct * C;
+  const gap = C - dash;
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative">
+        <svg width="96" height="96" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="48" cy="48" r={R} fill="none" stroke="#1f2937" strokeWidth="9" />
+          <circle
+            cx="48" cy="48" r={R} fill="none"
+            stroke={color} strokeWidth="9"
+            strokeDasharray={`${dash} ${gap}`}
+            strokeLinecap="round"
+            style={{ transition: 'stroke-dasharray 0.8s ease' }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-base font-bold text-white" style={{ transform: 'none' }}>{Math.round(value)}</span>
+          <span className="text-xs text-gray-400">{unit}</span>
+        </div>
+      </div>
+      <span className="text-xs text-gray-400 mt-1.5 font-medium">{label}</span>
+    </div>
+  );
+}
+
+function SuggestionCard({ suggestion }) {
+  const styles = {
+    warning: { border: 'border-orange-500/40', bg: 'bg-orange-500/8', dot: 'bg-orange-500' },
+    success: { border: 'border-green-500/40', bg: 'bg-green-500/8', dot: 'bg-green-500' },
+    info: { border: 'border-blue-500/40', bg: 'bg-blue-500/8', dot: 'bg-blue-500' },
+  };
+  const s = styles[suggestion.type] || styles.info;
+  return (
+    <div className={`border ${s.border} ${s.bg} rounded-2xl p-4 mb-3`}>
+      <div className="flex items-start gap-3">
+        <span className="text-2xl flex-shrink-0">{suggestion.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-white text-sm mb-1">{suggestion.title}</p>
+          <p className="text-gray-300 text-xs leading-relaxed">{suggestion.message}</p>
+          {suggestion.foods.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {suggestion.foods.map(f => (
+                <span key={f} className="text-xs bg-white/10 text-gray-200 px-2.5 py-1 rounded-full border border-white/10">{f}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MealCard({ meal, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+  const methodIcon = { text: '✏️', voice: '🎙️', camera: '📷' };
+  return (
+    <div className="bg-gray-800/60 border border-gray-700/50 rounded-2xl mb-3 overflow-hidden">
+      <button className="w-full flex items-center justify-between p-4 text-left" onClick={() => setExpanded(!expanded)}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-gray-700 flex items-center justify-center flex-shrink-0 text-base">
+            {methodIcon[meal.method] || '🍽️'}
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-white text-sm truncate">{meal.name}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{meal.items.length} item{meal.items.length !== 1 ? 's' : ''} · {meal.time}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+          <div className="text-right">
+            <p className="text-sm font-bold text-green-400">{meal.totalCalories} kcal</p>
+            <p className="text-xs text-blue-400">{meal.totalProtein}g protein</p>
+          </div>
+          <span className="text-gray-500 text-xs">{expanded ? '▲' : '▼'}</span>
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-t border-gray-700/50 px-4 pb-4">
+          <div className="space-y-2 pt-3">
+            {meal.items.map((item, i) => (
+              <div key={i} className="flex justify-between items-center">
+                <span className="text-xs text-gray-300">{item.quantity} {item.unit} {item.name}</span>
+                <span className="text-xs text-gray-500">{item.calories} kcal · {item.protein}g</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-700/50">
+            <span className="text-xs text-gray-500">
+              {methodIcon[meal.method]} {meal.method.charAt(0).toUpperCase() + meal.method.slice(1)} logged
+            </span>
+            <button
+              onClick={() => onDelete(meal.id)}
+              className="text-red-400 text-xs hover:text-red-300 py-1.5 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// FOOD ITEM EDITOR (shared)
+// ============================================================
+function FoodItemEditor({ items, onUpdate, onRemove, mealName, onMealNameChange }) {
+  const totalCal = items.reduce((s, i) => s + (parseFloat(i.calories) || 0), 0);
+  const totalPro = items.reduce((s, i) => s + (parseFloat(i.protein) || 0), 0);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs text-gray-400 flex-shrink-0">Name:</span>
+        <input
+          className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-green-500 transition-colors"
+          value={mealName}
+          placeholder="Meal name"
+          onChange={e => onMealNameChange(e.target.value)}
+        />
+      </div>
+      <div className="bg-gray-700/50 rounded-2xl overflow-hidden mb-3 border border-gray-600/50">
+        <div className="grid grid-cols-5 text-xs font-semibold text-gray-400 px-3 py-2.5 border-b border-gray-600/50 bg-gray-700">
+          <span className="col-span-2">Food Item</span>
+          <span className="text-center">Qty</span>
+          <span className="text-center">kcal</span>
+          <span className="text-center">prot</span>
+        </div>
+        {items.map((item, i) => (
+          <div key={i} className="grid grid-cols-5 px-3 py-2.5 border-b border-gray-600/30 last:border-0 items-center gap-1">
+            <div className="col-span-2 min-w-0">
+              <p className="text-xs text-white truncate">{item.name}</p>
+              <p className="text-xs text-gray-500">{item.unit}</p>
+            </div>
+            <input
+              type="number"
+              className="text-xs bg-gray-600 rounded-lg px-1 py-1 text-white text-center focus:outline-none focus:ring-1 focus:ring-green-500 w-full"
+              value={item.quantity}
+              step="0.5" min="0"
+              onChange={e => onUpdate(i, 'quantity', e.target.value)}
+            />
+            <input
+              type="number"
+              className="text-xs bg-gray-600 rounded-lg px-1 py-1 text-white text-center focus:outline-none focus:ring-1 focus:ring-green-500 w-full"
+              value={item.calories}
+              onChange={e => onUpdate(i, 'calories', e.target.value)}
+            />
+            <input
+              type="number"
+              className="text-xs bg-gray-600 rounded-lg px-1 py-1 text-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+              value={item.protein}
+              step="0.1"
+              onChange={e => onUpdate(i, 'protein', e.target.value)}
+            />
+          </div>
+        ))}
+        <div className="grid grid-cols-5 px-3 py-2.5 bg-gray-600/80">
+          <span className="text-xs font-bold text-white col-span-2">Total</span>
+          <span></span>
+          <span className="text-xs font-bold text-green-400 text-center">{Math.round(totalCal)}</span>
+          <span className="text-xs font-bold text-blue-400 text-center">{totalPro.toFixed(1)}g</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TEXT LOGGER
+// ============================================================
+function TextLogger({ onSave }) {
+  const [text, setText] = useState('');
+  const [items, setItems] = useState(null);
+  const [mealName, setMealName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [parseError, setParseError] = useState('');
+
+  const examples = [
+    '3 eggs and 2 rotis with a cup of milk tea',
+    '100g chicken breast with 1 cup rice',
+    '3 ande aur 2 roti with chai',
+    '1 cup oatmeal with banana and almonds',
+    '2 slices toast with peanut butter and coffee',
+    'paneer sabzi with 2 roti and dahi',
+  ];
+
+  const handleParse = () => {
+    if (!text.trim()) return;
+    setParseError('');
+    setLoading(true);
+    setTimeout(() => {
+      const parsed = parseFood(text);
+      if (!parsed.__recognized) {
+        setParseError('No food items recognized. Please enter a valid meal (e.g. "2 eggs and roti").');
+        setLoading(false);
+        return;
+      }
+      setItems(parsed);
+      setMealName(text.length > 35 ? text.substring(0, 35) + '…' : text);
+      setLoading(false);
+    }, 900);
+  };
+
+  const updateItem = (i, field, val) => {
+    const updated = [...items];
+    updated[i] = { ...updated[i], [field]: parseFloat(val) || 0 };
+    if (field === 'quantity') {
+      const q = parseFloat(val) || 0;
+      const base = FOOD_DB[updated[i].name.toLowerCase()];
+      if (base) {
+        updated[i].calories = Math.round(base.calories * q);
+        updated[i].protein = Math.round(base.protein * q * 10) / 10;
+      }
+    }
+    setItems(updated);
+  };
+
+  const handleSave = () => {
+    const totalCalories = items.reduce((s, i) => s + (parseFloat(i.calories) || 0), 0);
+    const totalProtein = items.reduce((s, i) => s + (parseFloat(i.protein) || 0), 0);
+    onSave({
+      id: genId(),
+      name: mealName || 'Meal',
+      items,
+      totalCalories: Math.round(totalCalories),
+      totalProtein: Math.round(totalProtein * 10) / 10,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      method: 'text',
+    });
+  };
+
+  if (items) {
+    return (
+      <div>
+        <FoodItemEditor items={items} onUpdate={updateItem} mealName={mealName} onMealNameChange={setMealName} />
+        <div className="flex gap-2 sticky bottom-0 z-10 bg-gray-900 pt-3 -mx-5 px-5 modal-sticky-footer">
+          <button onClick={() => setItems(null)} className="flex-1 py-3.5 rounded-2xl text-sm font-medium text-gray-400 bg-gray-700 hover:bg-gray-600 transition-colors">
+            ← Re-parse
+          </button>
+          <button onClick={handleSave} className="flex-1 py-3.5 rounded-2xl text-sm font-bold bg-green-600 hover:bg-green-500 text-white transition-colors shadow-lg shadow-green-500/20">
+            Save Meal ✓
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <textarea
+        className="w-full bg-gray-800 border border-gray-600 rounded-2xl p-4 text-white text-sm placeholder-gray-500 resize-none focus:outline-none focus:border-green-500 transition-colors leading-relaxed"
+        rows={4}
+        placeholder="Describe what you ate in natural language…"
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && e.metaKey && handleParse()}
+      />
+      {parseError && (
+        <div className="mt-2 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2.5 flex items-start gap-2">
+          <span className="text-sm flex-shrink-0">⚠️</span>
+          <p className="text-xs text-red-300">{parseError}</p>
+        </div>
+      )}
+      <button
+        onClick={handleParse}
+        disabled={!text.trim() || loading}
+        className="w-full mt-3 py-4 rounded-2xl font-bold text-sm bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white transition-colors"
+      >
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            Analyzing with AI…
+          </span>
+        ) : '🔍 Analyze Meal'}
+      </button>
+      <div className="mt-4">
+        <p className="text-xs text-gray-500 mb-2">Try these examples:</p>
+        <div className="space-y-1.5">
+          {examples.map((ex, i) => (
+            <button
+              key={i}
+              onClick={() => { setText(ex); setParseError(''); }}
+              className="w-full text-left text-xs text-gray-400 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-xl border border-gray-700 hover:border-gray-500 transition-all"
+            >
+              💬 {ex}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// VOICE LOGGER
+// ============================================================
+function VoiceLogger({ onSave }) {
+  const [listening, setListening] = useState(false);
+  const [inputText, setInputText] = useState('');
+  const [items, setItems] = useState(null);
+  const [mealName, setMealName] = useState('');
+  const [micStatus, setMicStatus] = useState('idle'); // idle | listening | error
+  const [micError, setMicError] = useState('');
+  const [parseError, setParseError] = useState('');
+  const recRef = useRef(null);
+  const supported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+
+  const startListening = () => {
+    if (!supported) {
+      setMicError('Voice recording not supported in this browser. Type your meal below.');
+      setMicStatus('error');
+      return;
+    }
+    try {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const rec = new SR();
+      rec.lang = 'en-IN';
+      rec.interimResults = true;
+      rec.continuous = false;
+      rec.onresult = e => {
+        const t = Array.from(e.results).map(r => r[0].transcript).join('');
+        setInputText(t);
+        setMicError('');
+      };
+      rec.onend = () => setMicStatus('idle');
+      rec.onerror = e => {
+        setMicStatus('error');
+        if (e.error === 'not-allowed') {
+          setMicError('Microphone permission denied. Please type your meal below.');
+        } else if (e.error === 'no-speech') {
+          setMicError('No speech detected. Please try again or type below.');
+        } else {
+          setMicError('Recording failed. Please type your meal below.');
+        }
+      };
+      rec.start();
+      recRef.current = rec;
+      setMicStatus('listening');
+      setMicError('');
+    } catch (e) {
+      setMicStatus('error');
+      setMicError('Could not start recording. Please type your meal below.');
+    }
+  };
+
+  const stopListening = () => {
+    if (recRef.current) { try { recRef.current.stop(); } catch(e) {} }
+    setMicStatus('idle');
+  };
+
+  const handleParse = () => {
+    if (!inputText.trim()) return;
+    setParseError('');
+    const parsed = parseFood(inputText);
+    if (!parsed.__recognized) {
+      setParseError('No food items recognized. Please describe a valid meal (e.g. "2 eggs with roti").');
+      return;
+    }
+    setItems(parsed);
+    setMealName(inputText.length > 35 ? inputText.substring(0, 35) + '…' : inputText);
+  };
+
+  const updateItem = (i, field, val) => {
+    const updated = [...items];
+    updated[i] = { ...updated[i], [field]: parseFloat(val) || 0 };
+    setItems(updated);
+  };
+
+  const handleSave = () => {
+    const totalCalories = items.reduce((s, i) => s + (parseFloat(i.calories) || 0), 0);
+    const totalProtein = items.reduce((s, i) => s + (parseFloat(i.protein) || 0), 0);
+    onSave({
+      id: genId(), name: mealName || 'Voice Meal', items,
+      totalCalories: Math.round(totalCalories),
+      totalProtein: Math.round(totalProtein * 10) / 10,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      method: 'voice',
+    });
+  };
+
+  if (items) {
+    return (
+      <div>
+        <FoodItemEditor items={items} onUpdate={updateItem} mealName={mealName} onMealNameChange={setMealName} />
+        <div className="flex gap-2 sticky bottom-0 z-10 bg-gray-900 pt-3 -mx-5 px-5 modal-sticky-footer">
+          <button onClick={() => setItems(null)} className="flex-1 py-3.5 rounded-2xl text-sm font-medium text-gray-400 bg-gray-700 hover:bg-gray-600">← Re-record</button>
+          <button onClick={handleSave} className="flex-1 py-3.5 rounded-2xl text-sm font-bold bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20">Save Meal ✓</button>
+        </div>
+      </div>
+    );
+  }
+
+  const isListening = micStatus === 'listening';
+
+  return (
+    <div>
+      {/* Mic button row */}
+      <div className="flex items-center gap-4 mb-4 bg-gray-800/60 border border-gray-700/50 rounded-2xl p-4">
+        <button
+          onClick={isListening ? stopListening : startListening}
+          className={`w-14 h-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-200 ${
+            isListening
+              ? 'bg-red-600 shadow-lg shadow-red-500/40 scale-105'
+              : 'bg-gray-700 hover:bg-gray-600 active:scale-95'
+          }`}
+        >
+          <span className="text-2xl">{isListening ? '⏹' : '🎙️'}</span>
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">
+            {isListening ? 'Listening… speak now' : 'Tap mic to record'}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {isListening ? 'Tap again to stop' : 'Speaks fills the text box below'}
+          </p>
+        </div>
+        {isListening && (
+          <div className="flex gap-0.5 items-end h-7 flex-shrink-0">
+            {[3, 5, 4, 7, 4, 5, 3].map((h, i) => (
+              <div key={i} className="w-1.5 bg-red-400 rounded-full animate-bounce"
+                style={{ height: `${h * 3}px`, animationDelay: `${i * 0.1}s` }} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {micError && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-3 py-2.5 mb-3 flex items-start gap-2">
+          <span className="text-sm flex-shrink-0">⚠️</span>
+          <p className="text-xs text-yellow-300">{micError}</p>
+        </div>
+      )}
+
+      {/* Text input */}
+      <textarea
+        className="w-full bg-gray-800 border border-gray-600 rounded-2xl p-4 text-white text-sm placeholder-gray-500 resize-none focus:outline-none focus:border-green-500 transition-colors leading-relaxed"
+        rows={3}
+        placeholder="Speak or type what you ate… e.g. 3 eggs with roti and chai"
+        value={inputText}
+        onChange={e => setInputText(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && e.metaKey && handleParse()}
+      />
+      {parseError && (
+        <div className="mt-2 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2.5 flex items-start gap-2">
+          <span className="text-sm flex-shrink-0">⚠️</span>
+          <p className="text-xs text-red-300">{parseError}</p>
+        </div>
+      )}
+
+      <button
+        onClick={handleParse}
+        disabled={!inputText.trim() || isListening}
+        className="w-full mt-3 py-4 rounded-2xl font-bold text-sm bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white transition-colors"
+      >
+        {isListening ? '🎙️ Recording…' : '🔍 Analyze Meal'}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
+// CAMERA LOGGER
+// ============================================================
+function CameraLogger({ onSave }) {
+  const [phase, setPhase] = useState('upload');
+  const [imageUrl, setImageUrl] = useState(null);
+  const [items, setItems] = useState(null);
+  const [mealName, setMealName] = useState('Scanned Meal');
+  const fileRef = useRef(null);
+
+  const handleFile = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setImageUrl(url);
+    setPhase('scanning');
+    setTimeout(() => {
+      const mock = SCAN_MOCKS[Math.floor(Math.random() * SCAN_MOCKS.length)];
+      setItems(mock.map(i => ({ ...i })));
+      setPhase('results');
+    }, 2200);
+  };
+
+  const updateItem = (i, field, val) => {
+    const updated = [...items];
+    updated[i] = { ...updated[i], [field]: parseFloat(val) || 0 };
+    setItems(updated);
+  };
+
+  const handleSave = () => {
+    const totalCalories = items.reduce((s, i) => s + (parseFloat(i.calories) || 0), 0);
+    const totalProtein = items.reduce((s, i) => s + (parseFloat(i.protein) || 0), 0);
+    onSave({
+      id: genId(), name: mealName, items,
+      totalCalories: Math.round(totalCalories),
+      totalProtein: Math.round(totalProtein * 10) / 10,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      method: 'camera',
+    });
+  };
+
+  if (phase === 'upload') {
+    return (
+      <div>
+        <div
+          className="border-2 border-dashed border-gray-600 rounded-2xl p-10 text-center cursor-pointer hover:border-green-500 hover:bg-green-500/5 transition-all"
+          onClick={() => fileRef.current.click()}
+        >
+          <div className="text-6xl mb-3">📷</div>
+          <p className="text-gray-200 text-base font-semibold mb-1">Upload Food Photo</p>
+          <p className="text-gray-500 text-sm">AI will detect items and estimate macros</p>
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+        <div className="mt-4 bg-gray-800/60 rounded-2xl p-4 border border-gray-700">
+          <p className="text-xs font-semibold text-gray-400 mb-2">🤖 AI Can Detect:</p>
+          <div className="flex flex-wrap gap-2">
+            {['Rice', 'Roti', 'Dal', 'Eggs', 'Chicken', 'Oatmeal', 'Fruits', '+40 more'].map(f => (
+              <span key={f} className="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded-full">{f}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'scanning') {
+    return (
+      <div className="text-center py-4">
+        {imageUrl && <img src={imageUrl} className="w-full h-44 object-cover rounded-2xl mb-5" alt="food" />}
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-14 h-14 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+          <div>
+            <p className="text-white font-semibold text-sm">AI Analyzing Your Meal</p>
+            <p className="text-gray-400 text-xs mt-1">Detecting foods • Estimating portions • Calculating macros</p>
+          </div>
+          <div className="flex gap-2">
+            {['🔍 Detecting', '⚡ Estimating', '📊 Calculating'].map((s, i) => (
+              <span key={i} className="text-xs text-gray-500 animate-pulse" style={{ animationDelay: `${i * 0.4}s` }}>{s}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {imageUrl && <img src={imageUrl} className="w-full h-36 object-cover rounded-2xl mb-3" alt="food" />}
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs text-green-400 font-semibold">✓ {items?.length} items detected</span>
+        <button onClick={() => { setPhase('upload'); setImageUrl(null); setItems(null); }} className="text-xs text-gray-400 hover:text-white">Rescan ↺</button>
+      </div>
+      <FoodItemEditor items={items || []} onUpdate={updateItem} mealName={mealName} onMealNameChange={setMealName} />
+      <div className="sticky bottom-0 z-10 bg-gray-900 pt-3 -mx-5 px-5 modal-sticky-footer">
+        <button onClick={handleSave} className="w-full py-4 rounded-2xl text-sm font-bold bg-green-600 hover:bg-green-500 text-white transition-colors shadow-lg shadow-green-500/20">
+          Save Meal ✓
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// LOG MEAL MODAL
+// ============================================================
+function LogMealModal({ onClose, onSave }) {
+  const [tab, setTab] = useState('text');
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end justify-center"
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="bg-gray-900 border border-gray-700/50 rounded-t-3xl w-full max-w-lg slide-up modal-sheet"
+        style={{ maxHeight: '92vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
+      >
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 bg-gray-600 rounded-full" />
+        </div>
+
+        <div className="px-5 pb-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white">Log Meal</h2>
+            <button onClick={onClose} className="w-8 h-8 rounded-xl bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center text-lg">✕</button>
+          </div>
+
+          {/* Tab bar */}
+          <div className="flex gap-1.5 mb-5 bg-gray-800 rounded-2xl p-1.5">
+            {[['text', '✏️', 'Text'], ['voice', '🎙️', 'Voice'], ['camera', '📷', 'Camera']].map(([id, icon, label]) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  tab === id
+                    ? 'bg-green-600 text-white shadow-lg shadow-green-500/20'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {icon} {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'text' && <TextLogger onSave={meal => { onSave(meal); onClose(); }} />}
+          {tab === 'voice' && <VoiceLogger onSave={meal => { onSave(meal); onClose(); }} />}
+          {tab === 'camera' && <CameraLogger onSave={meal => { onSave(meal); onClose(); }} />}
+        </div>
+
+        <div className="h-24" />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// DASHBOARD PAGE
+// ============================================================
+function Dashboard({ onLogMeal }) {
+  const { state, dispatch } = useContext(AppContext);
+  const { currentDate, goals, logs } = state;
+  const meals = logs[currentDate] || [];
+
+  const consumed = useMemo(() => ({
+    calories: meals.reduce((s, m) => s + m.totalCalories, 0),
+    protein: meals.reduce((s, m) => s + m.totalProtein, 0),
+  }), [meals]);
+
+  const suggestions = useMemo(() => getSuggestions(consumed, goals), [consumed, goals]);
+
+  const isToday = currentDate === getToday();
+
+  const changeDate = delta => {
+    const d = new Date(currentDate + 'T00:00:00');
+    d.setDate(d.getDate() + delta);
+    const newDate = d.toISOString().split('T')[0];
+    if (newDate <= getToday()) dispatch({ type: 'SET_DATE', payload: newDate });
+  };
+
+  const handleDelete = mealId => dispatch({ type: 'DELETE_MEAL', payload: { date: currentDate, mealId } });
+
+  const calRemaining = Math.max(0, goals.calories - consumed.calories);
+  const proRemaining = Math.max(0, goals.protein - consumed.protein);
+
+  return (
+    <div className="p-4 pb-36">
+      {/* Date navigation */}
+      <div className="flex items-center justify-between mb-5">
+        <button onClick={() => changeDate(-1)} className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xl flex items-center justify-center transition-colors">‹</button>
+        <div className="text-center">
+          <p className="text-white font-bold">{isToday ? '✨ Today' : formatDateShort(currentDate)}</p>
+          {!isToday && <p className="text-xs text-gray-400 mt-0.5">{formatDate(currentDate)}</p>}
+        </div>
+        <button onClick={() => changeDate(1)} disabled={isToday} className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-gray-300 text-xl flex items-center justify-center transition-colors">›</button>
+      </div>
+
+      {/* Main stats card */}
+      <div className="bg-gray-800/60 border border-gray-700/40 rounded-3xl p-5 mb-4">
+        {/* Rings */}
+        <div className="flex justify-around mb-5 pb-4 border-b border-gray-700/50">
+          <MacroRing value={consumed.calories} max={goals.calories} color="#22c55e" label="Calories" unit="kcal" />
+          <div className="w-px bg-gray-700/50 self-stretch" />
+          <MacroRing value={consumed.protein} max={goals.protein} color="#3b82f6" label="Protein" unit="g" />
+        </div>
+
+        {/* Progress bars */}
+        <ProgressBar
+          value={consumed.calories} max={goals.calories}
+          colorClass="bg-gradient-to-r from-green-600 to-green-400"
+          label="Calories" current={consumed.calories} goal={goals.calories} unit=" kcal"
+        />
+        <ProgressBar
+          value={consumed.protein} max={goals.protein}
+          colorClass="bg-gradient-to-r from-blue-600 to-blue-400"
+          label="Protein" current={consumed.protein} goal={goals.protein} unit="g"
+        />
+
+        {/* Remaining stats */}
+        <div className="grid grid-cols-3 gap-2 mt-1">
+          <div className="bg-gray-700/50 rounded-xl p-2.5 text-center">
+            <p className="text-green-400 font-bold text-base">{calRemaining}</p>
+            <p className="text-gray-400 text-xs">kcal left</p>
+          </div>
+          <div className="bg-gray-700/50 rounded-xl p-2.5 text-center">
+            <p className="text-blue-400 font-bold text-base">{proRemaining.toFixed(0)}g</p>
+            <p className="text-gray-400 text-xs">protein left</p>
+          </div>
+          <div className="bg-gray-700/50 rounded-xl p-2.5 text-center">
+            <p className="text-purple-400 font-bold text-base">{meals.length}</p>
+            <p className="text-gray-400 text-xs">meals</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Meals list */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2.5">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+            Meals {meals.length > 0 && `(${meals.length})`}
+          </h3>
+          {meals.length > 0 && (
+            <span className="text-xs text-gray-500">{consumed.calories} kcal · {consumed.protein}g protein</span>
+          )}
+        </div>
+
+        {meals.length === 0 ? (
+          <div className="bg-gray-800/40 border border-gray-700/30 rounded-3xl p-8 text-center">
+            <div className="text-5xl mb-3">🍽️</div>
+            <p className="text-gray-300 text-sm font-medium">No meals logged yet</p>
+            <p className="text-gray-500 text-xs mt-1">
+              {isToday ? 'Tap + to log your first meal' : 'Nothing was logged on this day'}
+            </p>
+          </div>
+        ) : (
+          meals.map(meal => <MealCard key={meal.id} meal={meal} onDelete={handleDelete} />)
+        )}
+      </div>
+
+      {/* AI Suggestions */}
+      <div className="mb-4">
+        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2.5">AI Suggestions</h3>
+        {suggestions.map((s, i) => <SuggestionCard key={i} suggestion={s} />)}
+      </div>
+
+      {/* FAB */}
+      {isToday && (
+        <button
+          onClick={onLogMeal}
+          className="fixed bottom-28 right-4 w-16 h-16 rounded-full bg-green-600 hover:bg-green-500 text-white text-3xl shadow-xl shadow-green-500/30 flex items-center justify-center transition-all active:scale-90 z-30"
+        >
+          +
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// GOALS PAGE
+// ============================================================
+function Goals() {
+  const { state, dispatch } = useContext(AppContext);
+  const [calories, setCalories] = useState(state.goals.calories);
+  const [protein, setProtein] = useState(state.goals.protein);
+  const [mode, setMode] = useState(state.goals.mode);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setCalories(state.goals.calories);
+    setProtein(state.goals.protein);
+    setMode(state.goals.mode);
+  }, [state.goals]);
+
+  const handleSave = () => {
+    dispatch({ type: 'SET_GOALS', payload: { calories: parseInt(calories) || 2000, protein: parseInt(protein) || 150, mode } });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const applyAI = () => {
+    setCalories(AI_GOALS.calories);
+    setProtein(AI_GOALS.protein);
+    setMode('ai');
+  };
+
+  const presets = [
+    { label: '🏃 Fat Loss', cal: 1500, pro: 160, desc: 'Caloric deficit with high protein' },
+    { label: '💪 Muscle Gain', cal: 2600, pro: 185, desc: 'Surplus with elevated protein' },
+    { label: '⚖️ Maintenance', cal: 2000, pro: 150, desc: 'Balanced daily intake' },
+    { label: '🏋️ Heavy Training', cal: 3200, pro: 210, desc: 'High energy for intense workouts' },
+  ];
+
+  return (
+    <div className="p-4 pb-36">
+      <h2 className="text-2xl font-bold text-white mb-1">Daily Goals</h2>
+      <p className="text-gray-400 text-sm mb-6">Set your personal nutrition targets</p>
+
+      {/* Mode toggle */}
+      <div className="flex gap-1.5 mb-5 bg-gray-800 rounded-2xl p-1.5">
+        <button
+          onClick={applyAI}
+          className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all ${mode === 'ai' ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+          🤖 AI Recommended
+        </button>
+        <button
+          onClick={() => setMode('manual')}
+          className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all ${mode === 'manual' ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white'}`}
+        >
+          ✏️ Manual
+        </button>
+      </div>
+
+      {mode === 'ai' && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 mb-5 flex gap-3">
+          <span className="text-2xl">🤖</span>
+          <div>
+            <p className="text-green-400 font-semibold text-sm">AI Recommended</p>
+            <p className="text-gray-400 text-xs mt-0.5">Based on standard adult nutritional guidelines for a moderately active person.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Calorie input */}
+      <div className="bg-gray-800/60 border border-gray-700/40 rounded-3xl p-5 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-white font-bold">Daily Calories</h3>
+            <p className="text-gray-400 text-xs mt-0.5">Recommended: 1,800–2,200 kcal</p>
+          </div>
+          <span className="text-3xl">🔥</span>
+        </div>
+        <input
+          type="range" min="800" max="4500" step="50"
+          value={calories}
+          onChange={e => { setCalories(e.target.value); setMode('manual'); }}
+          className="w-full accent-green-500 mb-3"
+        />
+        <div className="flex items-center gap-3">
+          <input
+            type="number" min="500" max="6000" step="50"
+            value={calories}
+            onChange={e => { setCalories(e.target.value); setMode('manual'); }}
+            className="flex-1 bg-gray-700 border border-gray-600 rounded-2xl px-4 py-3 text-white text-2xl font-bold text-center focus:outline-none focus:border-green-500 transition-colors"
+          />
+          <span className="text-gray-400 text-sm w-16">kcal<br/>/ day</span>
+        </div>
+      </div>
+
+      {/* Protein input */}
+      <div className="bg-gray-800/60 border border-gray-700/40 rounded-3xl p-5 mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-white font-bold">Daily Protein</h3>
+            <p className="text-gray-400 text-xs mt-0.5">Recommended: 0.8–2g per kg body weight</p>
+          </div>
+          <span className="text-3xl">💪</span>
+        </div>
+        <input
+          type="range" min="30" max="350" step="5"
+          value={protein}
+          onChange={e => { setProtein(e.target.value); setMode('manual'); }}
+          className="w-full accent-blue-500 mb-3"
+        />
+        <div className="flex items-center gap-3">
+          <input
+            type="number" min="20" max="500" step="5"
+            value={protein}
+            onChange={e => { setProtein(e.target.value); setMode('manual'); }}
+            className="flex-1 bg-gray-700 border border-gray-600 rounded-2xl px-4 py-3 text-white text-2xl font-bold text-center focus:outline-none focus:border-blue-500 transition-colors"
+          />
+          <span className="text-gray-400 text-sm w-16">grams<br/>/ day</span>
+        </div>
+      </div>
+
+      {/* Quick presets */}
+      <div className="mb-6">
+        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Quick Presets</h3>
+        <div className="grid grid-cols-2 gap-2.5">
+          {presets.map(preset => (
+            <button
+              key={preset.label}
+              onClick={() => { setCalories(preset.cal); setProtein(preset.pro); setMode('manual'); }}
+              className="bg-gray-800/60 border border-gray-700/40 hover:border-green-500/40 rounded-2xl p-3.5 text-left hover:bg-gray-700/60 transition-all"
+            >
+              <p className="text-sm text-white font-semibold">{preset.label}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{preset.cal} kcal · {preset.pro}g protein</p>
+              <p className="text-xs text-gray-500 mt-1">{preset.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        className={`w-full py-4 rounded-2xl font-bold text-base transition-all ${
+          saved
+            ? 'bg-green-700 text-green-200 scale-95'
+            : 'bg-green-600 hover:bg-green-500 text-white active:scale-95'
+        }`}
+      >
+        {saved ? '✓ Goals Saved Successfully!' : 'Save Goals'}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
+// HISTORY / CALENDAR PAGE
+// ============================================================
+function History() {
+  const { state, dispatch } = useContext(AppContext);
+  const { logs, goals, currentDate } = state;
+
+  const todayObj = new Date();
+  const [calYear, setCalYear] = useState(todayObj.getFullYear());
+  const [calMonth, setCalMonth] = useState(todayObj.getMonth());
+  const [selectedDay, setSelectedDay] = useState(currentDate);
+
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay();
+
+  const dayStr = d => `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const getDayStatus = d => {
+    const str = dayStr(d);
+    const dayMeals = logs[str] || [];
+    if (dayMeals.length === 0) return 'empty';
+    const cal = dayMeals.reduce((s, m) => s + m.totalCalories, 0);
+    const pct = cal / goals.calories;
+    if (pct >= 0.85 && pct <= 1.15) return 'goal';
+    if (pct >= 0.55) return 'partial';
+    return 'low';
+  };
+
+  const changeMonth = delta => {
+    let m = calMonth + delta, y = calYear;
+    if (m > 11) { m = 0; y++; }
+    if (m < 0) { m = 11; y--; }
+    setCalMonth(m); setCalYear(y);
+  };
+
+  const selectDay = d => {
+    const str = dayStr(d);
+    setSelectedDay(str);
+    dispatch({ type: 'SET_DATE', payload: str });
+  };
+
+  const viewMeals = logs[selectedDay] || [];
+  const viewConsumed = {
+    calories: viewMeals.reduce((s, m) => s + m.totalCalories, 0),
+    protein: viewMeals.reduce((s, m) => s + m.totalProtein, 0),
+  };
+
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const today = getToday();
+
+  const statusStyle = {
+    empty: 'text-gray-500 hover:bg-gray-700',
+    goal: 'bg-green-500/20 text-green-300 hover:bg-green-500/30',
+    partial: 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30',
+    low: 'bg-red-500/20 text-red-300 hover:bg-red-500/30',
+  };
+
+  return (
+    <div className="p-4 pb-36">
+      <h2 className="text-2xl font-bold text-white mb-1">Food History</h2>
+      <p className="text-gray-400 text-sm mb-5">Browse your past nutrition</p>
+
+      {/* Calendar */}
+      <div className="bg-gray-800/60 border border-gray-700/40 rounded-3xl p-4 mb-4">
+        {/* Month nav */}
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => changeMonth(-1)} className="w-9 h-9 rounded-xl bg-gray-700 hover:bg-gray-600 text-gray-300 flex items-center justify-center text-lg transition-colors">‹</button>
+          <span className="text-white font-bold">{monthNames[calMonth]} {calYear}</span>
+          <button onClick={() => changeMonth(1)} className="w-9 h-9 rounded-xl bg-gray-700 hover:bg-gray-600 text-gray-300 flex items-center justify-center text-lg transition-colors">›</button>
+        </div>
+
+        {/* Day headers */}
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+            <div key={d} className="text-center text-xs text-gray-500 font-semibold py-1">{d}</div>
+          ))}
+        </div>
+
+        {/* Days grid */}
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`pad-${i}`} />)}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const d = i + 1;
+            const str = dayStr(d);
+            const isSelected = str === selectedDay;
+            const isToday = str === today;
+            const isFuture = str > today;
+            const status = isFuture ? 'future' : getDayStatus(d);
+
+            return (
+              <button
+                key={d}
+                disabled={isFuture}
+                onClick={() => selectDay(d)}
+                className={`
+                  aspect-square rounded-xl flex items-center justify-center text-xs font-semibold transition-all
+                  ${isSelected ? 'bg-green-600 text-white ring-2 ring-green-400 ring-offset-1 ring-offset-gray-800 scale-110' : ''}
+                  ${!isSelected && isToday ? 'ring-1 ring-green-500 text-green-400' : ''}
+                  ${!isSelected && !isToday && !isFuture ? statusStyle[status] : ''}
+                  ${isFuture ? 'text-gray-700 cursor-not-allowed' : ''}
+                `}
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex gap-4 mt-4 justify-center flex-wrap">
+          {[['bg-green-500/30 text-green-400', 'Goal met'], ['bg-yellow-500/30 text-yellow-400', 'Partial'], ['bg-red-500/30 text-red-400', 'Low']].map(([cls, label]) => (
+            <span key={label} className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className={`w-3.5 h-3.5 rounded-sm ${cls}`} />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Selected day detail */}
+      <div className="bg-gray-800/60 border border-gray-700/40 rounded-3xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-white font-bold">{selectedDay === today ? '✨ Today' : formatDateShort(selectedDay)}</h3>
+          {viewMeals.length > 0 && (
+            <div className="flex gap-3">
+              <span className="text-xs text-green-400 font-semibold">{viewConsumed.calories} kcal</span>
+              <span className="text-xs text-blue-400 font-semibold">{viewConsumed.protein}g protein</span>
+            </div>
+          )}
+        </div>
+
+        {viewMeals.length === 0 ? (
+          <div className="text-center py-6">
+            <div className="text-4xl mb-2">📋</div>
+            <p className="text-gray-400 text-sm">No meals logged on this day</p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-3">
+              <ProgressBar
+                value={viewConsumed.calories} max={goals.calories}
+                colorClass="bg-green-500" label="Calories"
+                current={viewConsumed.calories} goal={goals.calories} unit=" kcal"
+              />
+              <ProgressBar
+                value={viewConsumed.protein} max={goals.protein}
+                colorClass="bg-blue-500" label="Protein"
+                current={viewConsumed.protein} goal={goals.protein} unit="g"
+              />
+            </div>
+            {viewMeals.map(meal => (
+              <div key={meal.id} className="flex justify-between items-center py-2.5 border-b border-gray-700/50 last:border-0">
+                <div>
+                  <p className="text-sm text-white font-medium">{meal.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{meal.time} · {meal.items.length} item{meal.items.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-green-400">{meal.totalCalories} kcal</p>
+                  <p className="text-xs text-blue-400">{meal.totalProtein}g</p>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// WEEKLY SUMMARY PAGE
+// ============================================================
+function LineChart({ data, color, goalColor, label, unit, goal }) {
+  const W = 300, H = 110, PAD = { t: 20, b: 22, l: 8, r: 8 };
+  const innerW = W - PAD.l - PAD.r;
+  const innerH = H - PAD.t - PAD.b;
+
+  const allValues = data.map(d => d.value).concat(goal ? [goal] : []);
+  const maxVal = Math.max(...allValues, 1) * 1.15;
+
+  const toX = i => PAD.l + (i / Math.max(data.length - 1, 1)) * innerW;
+  const toY = v => PAD.t + innerH - (v / maxVal) * innerH;
+
+  const pts = data.map((d, i) => `${toX(i)},${toY(d.value)}`).join(' ');
+  const goalY = goal ? toY(goal) : null;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{label}</span>
+        {goal && <span className="text-xs text-gray-500">Goal: {goal}{unit}</span>}
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+        <defs>
+          <linearGradient id={`g-${label}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+
+        {/* Goal dashed line */}
+        {goalY && (
+          <line x1={PAD.l} y1={goalY} x2={W - PAD.r} y2={goalY}
+            stroke={goalColor || '#4b5563'} strokeDasharray="5 3" strokeWidth="1.5" opacity="0.7" />
+        )}
+
+        {/* Area fill */}
+        {data.some(d => d.value > 0) && (
+          <polygon
+            points={`${PAD.l},${PAD.t + innerH} ${pts} ${W - PAD.r},${PAD.t + innerH}`}
+            fill={`url(#g-${label})`}
+          />
+        )}
+
+        {/* Line */}
+        {data.some(d => d.value > 0) && (
+          <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        )}
+
+        {/* Data points */}
+        {data.map((d, i) => (
+          <g key={i}>
+            {d.value > 0 && (
+              <>
+                <circle cx={toX(i)} cy={toY(d.value)} r="4.5" fill={color} opacity="0.9" />
+                <circle cx={toX(i)} cy={toY(d.value)} r="2" fill="white" opacity="0.8" />
+                <text x={toX(i)} y={toY(d.value) - 10} textAnchor="middle" fill={color} fontSize="9" fontWeight="600">
+                  {d.value > 0 ? d.value : ''}
+                </text>
+              </>
+            )}
+            <text x={toX(i)} y={H - 2} textAnchor="middle" fill="#6b7280" fontSize="9">
+              {d.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function Weekly() {
+  const { state } = useContext(AppContext);
+  const { logs, goals } = state;
+  const days = getLast7Days();
+
+  const chartData = days.map(d => {
+    const dayMeals = logs[d] || [];
+    const date = new Date(d + 'T00:00:00');
+    return {
+      date: d,
+      label: date.toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 2),
+      calories: dayMeals.reduce((s, m) => s + m.totalCalories, 0),
+      protein: dayMeals.reduce((s, m) => s + m.totalProtein, 0),
+      meals: dayMeals.length,
+    };
+  });
+
+  const logged = chartData.filter(d => d.calories > 0);
+  const avgCal = logged.length ? Math.round(logged.reduce((s, d) => s + d.calories, 0) / logged.length) : 0;
+  const avgPro = logged.length ? Math.round(logged.reduce((s, d) => s + d.protein, 0) / logged.length * 10) / 10 : 0;
+  const adherence = Math.round(logged.filter(d => d.calories >= goals.calories * 0.85 && d.calories <= goals.calories * 1.15).length / 7 * 100);
+  const totalMeals = chartData.reduce((s, d) => s + d.meals, 0);
+
+  return (
+    <div className="p-4 pb-36">
+      <h2 className="text-2xl font-bold text-white mb-1">Weekly Summary</h2>
+      <p className="text-gray-400 text-sm mb-5">Last 7 days at a glance</p>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {[
+          { label: 'Avg Calories', value: avgCal, unit: 'kcal/day', color: 'text-green-400', emoji: '🔥' },
+          { label: 'Avg Protein', value: `${avgPro}g`, unit: 'per day', color: 'text-blue-400', emoji: '💪' },
+          { label: 'Goal Adherence', value: `${adherence}%`, unit: 'days on target', color: 'text-purple-400', emoji: '🎯' },
+          { label: 'Total Meals', value: totalMeals, unit: `${logged.length} days logged`, color: 'text-orange-400', emoji: '🍽️' },
+        ].map(stat => (
+          <div key={stat.label} className="bg-gray-800/60 border border-gray-700/40 rounded-2xl p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{stat.unit}</p>
+              </div>
+              <span className="text-2xl">{stat.emoji}</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">{stat.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Calorie chart */}
+      <div className="bg-gray-800/60 border border-gray-700/40 rounded-3xl p-5 mb-4">
+        <LineChart
+          data={chartData.map(d => ({ label: d.label, value: d.calories }))}
+          color="#22c55e" goalColor="#166534" label="Calorie Trend" unit=" kcal" goal={goals.calories}
+        />
+      </div>
+
+      {/* Protein chart */}
+      <div className="bg-gray-800/60 border border-gray-700/40 rounded-3xl p-5 mb-4">
+        <LineChart
+          data={chartData.map(d => ({ label: d.label, value: d.protein }))}
+          color="#3b82f6" goalColor="#1e3a5f" label="Protein Trend" unit="g" goal={goals.protein}
+        />
+      </div>
+
+      {/* Day-by-day breakdown */}
+      <div className="bg-gray-800/60 border border-gray-700/40 rounded-3xl p-4">
+        <h3 className="text-sm font-bold text-gray-300 mb-4">Daily Breakdown</h3>
+        {chartData.map(d => {
+          const calPct = goals.calories ? Math.min((d.calories / goals.calories) * 100, 100) : 0;
+          const isOnTarget = d.calories >= goals.calories * 0.85 && d.calories <= goals.calories * 1.15;
+          const fullDate = new Date(d.date + 'T00:00:00');
+          return (
+            <div key={d.date} className="mb-3.5 last:mb-0">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-7 font-medium">{d.label}</span>
+                  {isOnTarget && d.calories > 0 && <span className="text-xs text-green-500">✓</span>}
+                </div>
+                <span className="text-xs text-gray-400">
+                  {d.calories > 0 ? `${d.calories} kcal · ${d.protein}g protein` : 'Not logged'}
+                </span>
+              </div>
+              <div className="flex-1 h-2 bg-gray-700/60 rounded-full overflow-hidden">
+                <div
+                  className={`h-2 rounded-full transition-all ${isOnTarget ? 'bg-green-500' : d.calories > goals.calories * 1.15 ? 'bg-red-500' : 'bg-yellow-500'}`}
+                  style={{ width: `${calPct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// BOTTOM NAVIGATION
+// ============================================================
+function BottomNav({ page, setPage }) {
+  const { state } = useContext(AppContext);
+  const meals = state.logs[state.currentDate] || [];
+  const consumed = meals.reduce((s, m) => s + m.totalCalories, 0);
+  const pct = Math.min(Math.round((consumed / (state.goals.calories || 1)) * 100), 100);
+
+  const tabs = [
+    { id: 'dashboard', emoji: '🏠', label: 'Home' },
+    { id: 'history', emoji: '📅', label: 'History' },
+    { id: 'weekly', emoji: '📊', label: 'Weekly' },
+    { id: 'goals', emoji: '🎯', label: 'Goals' },
+  ];
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-gray-900/95 backdrop-blur-xl border-t border-gray-800">
+      <div className="max-w-lg mx-auto px-2 pt-2 nav-safe-bottom">
+        <div className="flex justify-around items-center">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setPage(tab.id)}
+              className={`flex flex-col items-center gap-0.5 px-5 py-1.5 rounded-2xl transition-all ${
+                page === tab.id
+                  ? 'text-green-400 bg-green-500/10'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <span className="text-2xl leading-tight">{tab.emoji}</span>
+              <span className="text-xs font-medium">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// ============================================================
+// HEADER
+// ============================================================
+function Header({ page }) {
+  const { state } = useContext(AppContext);
+  const meals = state.logs[state.currentDate] || [];
+  const consumed = {
+    calories: meals.reduce((s, m) => s + m.totalCalories, 0),
+    protein: meals.reduce((s, m) => s + m.totalProtein, 0),
+  };
+  const calPct = Math.min(Math.round((consumed.calories / (state.goals.calories || 1)) * 100), 100);
+
+  return (
+    <header className="sticky top-0 z-30 bg-gray-950/95 backdrop-blur-xl border-b border-gray-800/80">
+      <div className="max-w-lg mx-auto px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-white">
+              NutriTrack <span className="text-green-400">AI</span>
+            </h1>
+            <p className="text-xs text-gray-500">{formatDateShort(state.currentDate)}</p>
+          </div>
+          <div className="flex items-center gap-2 bg-gray-800 rounded-2xl px-3 py-2 border border-gray-700/50">
+            <div className="w-6 h-6 relative">
+              <svg width="24" height="24" viewBox="0 0 24 24" style={{ transform: 'rotate(-90deg)' }}>
+                <circle cx="12" cy="12" r="8" fill="none" stroke="#1f2937" strokeWidth="3.5" />
+                <circle
+                  cx="12" cy="12" r="8" fill="none"
+                  stroke="#22c55e" strokeWidth="3.5"
+                  strokeDasharray={`${calPct * 0.503} ${50.3}`}
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            <div>
+              <span className="text-green-400 text-sm font-bold">{consumed.calories}</span>
+              <span className="text-gray-500 text-xs"> / {state.goals.calories} kcal</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ============================================================
+// ROOT APP
+// ============================================================
+function App() {
+  const [state, dispatch] = useReducer(reducer, null, getInitialState);
+  const [page, setPage] = useState('dashboard');
+  const [showLog, setShowLog] = useState(false);
+
+  const handleSaveMeal = meal => {
+    dispatch({ type: 'ADD_MEAL', payload: { date: state.currentDate, meal } });
+  };
+
+  return (
+    <AppContext.Provider value={{ state, dispatch }}>
+      <div className="min-h-screen bg-gray-950 text-white">
+        <div className="max-w-lg mx-auto relative min-h-screen">
+          <Header page={page} />
+          <main>
+            {page === 'dashboard' && <Dashboard onLogMeal={() => setShowLog(true)} />}
+            {page === 'goals' && <Goals />}
+            {page === 'history' && <History />}
+            {page === 'weekly' && <Weekly />}
+          </main>
+          <BottomNav page={page} setPage={setPage} />
+          {showLog && (
+            <LogMealModal
+              onClose={() => setShowLog(false)}
+              onSave={meal => { handleSaveMeal(meal); setShowLog(false); }}
+            />
+          )}
+        </div>
+      </div>
+    </AppContext.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
