@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>NutriTrack AI – Food Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <script>
     tailwind.config = {
       theme: {
@@ -494,7 +495,12 @@ const AppContext = React.createContext(null);
 function getInitialState() {
   try {
     const stored = localStorage.getItem('nutritrack_v2');
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Always open on today's date
+      parsed.currentDate = getToday();
+      return parsed;
+    }
   } catch (e) {}
   return {
     goals: { calories: 2000, protein: 150, mode: 'manual' },
@@ -627,9 +633,17 @@ function SuggestionCard({ suggestion }) {
   );
 }
 
-function MealCard({ meal, onDelete }) {
+function MealCard({ meal, onDelete, onRepeat }) {
   const [expanded, setExpanded] = useState(false);
+  const [repeated, setRepeated] = useState(false);
   const methodIcon = { text: '✏️', voice: '🎙️', camera: '📷' };
+
+  const handleRepeat = () => {
+    onRepeat(meal);
+    setRepeated(true);
+    setTimeout(() => setRepeated(false), 2000);
+  };
+
   return (
     <div className="bg-gray-800/60 border border-gray-700/50 rounded-2xl mb-3 overflow-hidden">
       <button className="w-full flex items-center justify-between p-4 text-left" onClick={() => setExpanded(!expanded)}>
@@ -660,10 +674,20 @@ function MealCard({ meal, onDelete }) {
               </div>
             ))}
           </div>
-          <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-700/50">
-            <span className="text-xs text-gray-500">
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-700/50">
+            <span className="text-xs text-gray-500 flex-1">
               {methodIcon[meal.method]} {meal.method.charAt(0).toUpperCase() + meal.method.slice(1)} logged
             </span>
+            <button
+              onClick={handleRepeat}
+              className={`text-xs py-1.5 px-3 rounded-lg transition-all ${
+                repeated
+                  ? 'text-green-300 bg-green-500/20'
+                  : 'text-green-400 bg-green-500/10 hover:bg-green-500/20'
+              }`}
+            >
+              {repeated ? '✓ Added!' : '🔁 Repeat'}
+            </button>
             <button
               onClick={() => onDelete(meal.id)}
               className="text-red-400 text-xs hover:text-red-300 py-1.5 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
@@ -1137,10 +1161,82 @@ function CameraLogger({ onSave }) {
 }
 
 // ============================================================
+// RECENT MEALS LOGGER
+// ============================================================
+function RecentLogger({ onSave }) {
+  const { state } = useContext(AppContext);
+  const [added, setAdded] = useState({});
+
+  // Collect all meals across all dates, most recent first, deduplicated by name
+  const recentMeals = useMemo(() => {
+    const allDates = Object.keys(state.logs).sort((a, b) => b.localeCompare(a));
+    const seen = new Set();
+    const meals = [];
+    for (const date of allDates) {
+      for (const meal of [...(state.logs[date] || [])].reverse()) {
+        if (!seen.has(meal.name)) {
+          seen.add(meal.name);
+          meals.push({ ...meal, originalDate: date });
+        }
+      }
+    }
+    return meals.slice(0, 10);
+  }, [state.logs]);
+
+  const handleLog = meal => {
+    onSave({
+      ...meal,
+      id: genId(),
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    });
+    setAdded(prev => ({ ...prev, [meal.name]: true }));
+  };
+
+  if (recentMeals.length === 0) {
+    return (
+      <div className="text-center py-10">
+        <div className="text-5xl mb-3">🍽️</div>
+        <p className="text-gray-300 text-sm font-medium">No past meals yet</p>
+        <p className="text-gray-500 text-xs mt-1">Log your first meal using Text, Voice or Camera</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-xs text-gray-500 mb-3">Tap any meal to instantly log it for today</p>
+      <div className="space-y-2">
+        {recentMeals.map(meal => (
+          <div key={meal.name} className="bg-gray-800/60 border border-gray-700/40 rounded-2xl p-3.5 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{meal.name}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {meal.totalCalories} kcal · {meal.totalProtein}g protein · {meal.items.length} item{meal.items.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <button
+              onClick={() => handleLog(meal)}
+              disabled={added[meal.name]}
+              className={`flex-shrink-0 py-2 px-4 rounded-xl text-xs font-bold transition-all ${
+                added[meal.name]
+                  ? 'bg-green-700/40 text-green-300'
+                  : 'bg-green-600 hover:bg-green-500 text-white active:scale-95'
+              }`}
+            >
+              {added[meal.name] ? '✓ Added' : '+ Log'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // LOG MEAL MODAL
 // ============================================================
 function LogMealModal({ onClose, onSave }) {
-  const [tab, setTab] = useState('text');
+  const [tab, setTab] = useState('recent');
 
   return (
     <div
@@ -1163,12 +1259,12 @@ function LogMealModal({ onClose, onSave }) {
           </div>
 
           {/* Tab bar */}
-          <div className="flex gap-1.5 mb-5 bg-gray-800 rounded-2xl p-1.5">
-            {[['text', '✏️', 'Text'], ['voice', '🎙️', 'Voice'], ['camera', '📷', 'Camera']].map(([id, icon, label]) => (
+          <div className="grid grid-cols-4 gap-1 mb-5 bg-gray-800 rounded-2xl p-1.5">
+            {[['recent', '🔁', 'Recent'], ['text', '✏️', 'Text'], ['voice', '🎙️', 'Voice'], ['camera', '📷', 'Camera']].map(([id, icon, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`py-2 rounded-xl text-xs font-semibold transition-all ${
                   tab === id
                     ? 'bg-green-600 text-white shadow-lg shadow-green-500/20'
                     : 'text-gray-400 hover:text-white'
@@ -1179,6 +1275,7 @@ function LogMealModal({ onClose, onSave }) {
             ))}
           </div>
 
+          {tab === 'recent' && <RecentLogger onSave={meal => { onSave(meal); onClose(); }} />}
           {tab === 'text' && <TextLogger onSave={meal => { onSave(meal); onClose(); }} />}
           {tab === 'voice' && <VoiceLogger onSave={meal => { onSave(meal); onClose(); }} />}
           {tab === 'camera' && <CameraLogger onSave={meal => { onSave(meal); onClose(); }} />}
@@ -1215,6 +1312,22 @@ function Dashboard({ onLogMeal }) {
   };
 
   const handleDelete = mealId => dispatch({ type: 'DELETE_MEAL', payload: { date: currentDate, mealId } });
+
+  const handleRepeat = meal => {
+    const today = getToday();
+    dispatch({
+      type: 'ADD_MEAL',
+      payload: {
+        date: today,
+        meal: {
+          ...meal,
+          id: genId(),
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        },
+      },
+    });
+    if (currentDate !== today) dispatch({ type: 'SET_DATE', payload: today });
+  };
 
   const calRemaining = Math.max(0, goals.calories - consumed.calories);
   const proRemaining = Math.max(0, goals.protein - consumed.protein);
@@ -1289,7 +1402,7 @@ function Dashboard({ onLogMeal }) {
             </p>
           </div>
         ) : (
-          meals.map(meal => <MealCard key={meal.id} meal={meal} onDelete={handleDelete} />)
+          meals.map(meal => <MealCard key={meal.id} meal={meal} onDelete={handleDelete} onRepeat={handleRepeat} />)
         )}
       </div>
 
@@ -1303,7 +1416,7 @@ function Dashboard({ onLogMeal }) {
       {isToday && (
         <button
           onClick={onLogMeal}
-          className="fixed bottom-28 right-4 w-16 h-16 rounded-full bg-blue-900 hover:bg-blue-800 text-white text-3xl shadow-xl shadow-blue-900/40 flex items-center justify-center transition-all active:scale-90 z-30"
+          className="fixed bottom-28 right-4 w-16 h-16 rounded-full bg-green-600 hover:bg-green-500 text-white text-3xl shadow-xl shadow-green-500/30 flex items-center justify-center transition-all active:scale-90 z-30"
         >
           +
         </button>
@@ -1810,10 +1923,10 @@ function BottomNav({ page, setPage }) {
   const pct = Math.min(Math.round((consumed / (state.goals.calories || 1)) * 100), 100);
 
   const tabs = [
-    { id: 'dashboard', emoji: '🏠', label: 'Home' },
-    { id: 'history', emoji: '📅', label: 'History' },
-    { id: 'weekly', emoji: '📊', label: 'Weekly' },
-    { id: 'goals', emoji: '🎯', label: 'Goals' },
+    { id: 'dashboard', icon: 'fa-solid fa-house',       label: 'Home'    },
+    { id: 'history',   icon: 'fa-solid fa-calendar-days', label: 'History' },
+    { id: 'weekly',    icon: 'fa-solid fa-chart-line',   label: 'Weekly'  },
+    { id: 'goals',     icon: 'fa-solid fa-bullseye',     label: 'Goals'   },
   ];
 
   return (
@@ -1824,13 +1937,13 @@ function BottomNav({ page, setPage }) {
             <button
               key={tab.id}
               onClick={() => setPage(tab.id)}
-              className={`flex flex-col items-center gap-0.5 px-5 py-1.5 rounded-2xl transition-all ${
+              className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-2xl transition-all ${
                 page === tab.id
                   ? 'text-green-400 bg-green-500/10'
                   : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              <span className="text-2xl leading-tight">{tab.emoji}</span>
+              <i className={`${tab.icon} text-xl`} />
               <span className="text-xs font-medium">{tab.label}</span>
             </button>
           ))}
